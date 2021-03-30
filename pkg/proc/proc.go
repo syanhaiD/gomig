@@ -6,17 +6,15 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-func Exec(tomlPath string, sqlOnly bool) int {
+func Exec(tomlPath string, sqlOnly bool) (err error) {
 	fromToml, err := parseToml(tomlPath)
 	if err != nil {
-		fmt.Println(err)
-		return 1
+		return
 	}
 	connect(fromToml.database)
 	fromDB, err := parseDB(fromToml.database.name)
 	if err != nil {
-		fmt.Println(err)
-		return 1
+		return
 	}
 	queries := procDiff(fromToml, fromDB)
 	if sqlOnly {
@@ -24,12 +22,11 @@ func Exec(tomlPath string, sqlOnly bool) int {
 	} else {
 		err = execDDL(queries)
 		if err != nil {
-			fmt.Println(err)
-			return 1
+			return
 		}
 	}
 
-	return 0
+	return
 }
 
 var dbConn *sql.DB
