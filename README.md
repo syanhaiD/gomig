@@ -61,7 +61,7 @@ columns = [
   {name = "age", type = "int", unsigned = true, null = false},
   {name = "birth", type = "int", unsigned = true, null = false, default = "5"},
 ]
-primary = "id"
+primary = ["id"]
 index = ["sub_id","name"]
 unique_index = ["age,birth"]
 ```
