@@ -6,8 +6,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-func Exec(tomlPath string, sqlOnly bool) (err error) {
-	fromToml, err := parseToml(tomlPath)
+func Exec(tomlPath string, sqlOnly, testEnv bool) (err error) {
+	fromToml, err := parseToml(tomlPath, testEnv)
 	if err != nil {
 		return
 	}

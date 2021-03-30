@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func parseToml(tomlPath string) (result schema, err error) {
+func parseToml(tomlPath string, testEnv bool) (result schema, err error) {
 	var trial interface{}
 	_, err = toml.DecodeFile(tomlPath, &trial)
 	if err != nil {
@@ -20,9 +20,15 @@ func parseToml(tomlPath string) (result schema, err error) {
 		indexInfosMap: map[string]*indexInfo{},
 	}
 	parsed := trial.(map[string]interface{})
-	databaseMapIF, exist := parsed["database"]
+	var databaseSettingKey string
+	if testEnv {
+		databaseSettingKey = "database_test"
+	} else {
+		databaseSettingKey = "database"
+	}
+	databaseMapIF, exist := parsed[databaseSettingKey]
 	if !exist {
-		err = errors.New("key database are not found")
+		err = errors.New("database setting are not found")
 		return
 	}
 	var ok bool
