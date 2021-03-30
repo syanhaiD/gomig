@@ -12,6 +12,7 @@ func Exec(tomlPath string, sqlOnly bool) (err error) {
 		return
 	}
 	connect(fromToml.database)
+	defer dbConn.Close()
 	fromDB, err := parseDB(fromToml.database.name)
 	if err != nil {
 		return
