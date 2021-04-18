@@ -6,6 +6,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
+// TODO: primary周りの改善いずれやろう
 func Exec(tomlPath string, sqlOnly, testEnv bool) (err error) {
 	fromToml, err := parseToml(tomlPath, testEnv)
 	if err != nil {

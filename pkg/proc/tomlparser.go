@@ -15,9 +15,10 @@ func parseToml(tomlPath string, testEnv bool) (result schema, err error) {
 	}
 
 	result = schema{
-		tables:        []tableInfo{},
-		tablesMap:     map[string]tableInfo{},
-		indexInfosMap: map[string]*indexInfo{},
+		tables:         []tableInfo{},
+		tablesMap:      map[string]tableInfo{},
+		indexInfosMap:  map[string]*indexInfo{},
+		primaryKeysMap: map[string][]string{},
 	}
 	parsed := trial.(map[string]interface{})
 	var databaseSettingKey string
@@ -68,12 +69,14 @@ func parseToml(tomlPath string, testEnv bool) (result schema, err error) {
 	for _, tableIFMap := range tablesSliceIF {
 		var ti tableInfo
 		indexInfos := map[string]*indexInfo{}
-		ti, indexInfos, err = parseTables(tableIFMap)
+		primaries := []string{}
+		ti, indexInfos, primaries, err = parseTables(tableIFMap)
 		if err != nil {
 			return
 		}
 		result.tables = append(result.tables, ti)
 		result.tablesMap[ti.name] = ti
+		result.primaryKeysMap[ti.name] = primaries
 		for key, value := range indexInfos {
 			result.indexInfosMap[key] = value
 		}
@@ -82,11 +85,12 @@ func parseToml(tomlPath string, testEnv bool) (result schema, err error) {
 	return
 }
 
-func parseTables(tableIFMap map[string]interface{}) (result tableInfo, indexInfos map[string]*indexInfo, err error) {
+func parseTables(tableIFMap map[string]interface{}) (result tableInfo, indexInfos map[string]*indexInfo, primaryKeys []string, err error) {
 	result = tableInfo{
 		columnsMap: map[string]tableColumn{},
 	}
 	indexInfos = map[string]*indexInfo{}
+	primaryKeys = []string{}
 
 	if nameIF, exist := tableIFMap["name"]; exist {
 		result.name = nameIF.(string)
@@ -124,6 +128,7 @@ func parseTables(tableIFMap map[string]interface{}) (result tableInfo, indexInfo
 				indexInfos["PRIMARY"] = &indexInfo{tableName: result.name, indexName: "PRIMARY", columns: []string{}}
 			}
 			indexInfos["PRIMARY"].columns = append(indexInfos["PRIMARY"].columns, primariesSlice...)
+			primaryKeys = append(primaryKeys, primariesSlice...)
 		}
 	}
 	if indexIF, exist := tableIFMap["index"]; exist {
@@ -239,4 +244,3 @@ func parseColumns(columnsMap map[string]interface{}) (result tableColumn, err er
 
 	return
 }
-

@@ -3,10 +3,11 @@ package proc
 import "database/sql"
 
 type schema struct {
-	database      databaseInfo
-	tables        []tableInfo
-	tablesMap     map[string]tableInfo  // map[tableName]
-	indexInfosMap map[string]*indexInfo // map[indexName]
+	database       databaseInfo
+	tables         []tableInfo
+	tablesMap      map[string]tableInfo  // map[tableName]
+	indexInfosMap  map[string]*indexInfo // map[indexName]
+	primaryKeysMap map[string][]string // map[tableName]
 }
 
 type databaseInfo struct {

@@ -22,7 +22,7 @@ func procTableDiff(fromToml, fromDB schema, result *Queries) {
 	for _, ti := range fromToml.tables {
 		// tomlにあってDBにないテーブルはcreate
 		if _, exist := fromDB.tablesMap[ti.name]; !exist {
-			result.CreateTables = append(result.CreateTables, buildCreateTableQuery(ti))
+			result.CreateTables = append(result.CreateTables, buildCreateTableQuery(ti, fromToml.primaryKeysMap[ti.name]))
 			continue
 		}
 		if !reflect.DeepEqual(ti.columns, fromDB.tablesMap[ti.name].columns) {
@@ -61,7 +61,7 @@ func procTableDiff(fromToml, fromDB schema, result *Queries) {
 	}
 }
 
-func buildCreateTableQuery(ti tableInfo) string {
+func buildCreateTableQuery(ti tableInfo, primaryKeys []string) string {
 	result := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %v (`, ti.name)
 	columnQueries := []string{}
 	var primary string
@@ -87,6 +87,16 @@ func buildCreateTableQuery(ti tableInfo) string {
 			primary = fmt.Sprintf(", PRIMARY KEY (`%v`)", column.name)
 		}
 		columnQueries = append(columnQueries, strings.Join(definition, " "))
+	}
+	if primary == "" {
+		// auto incなし
+		if len(primaryKeys) > 0 {
+			escaped := []string{}
+			for _, key := range primaryKeys {
+				escaped = append(escaped, fmt.Sprintf("`%v`", key))
+			}
+			primary = fmt.Sprintf(", PRIMARY KEY (%v)", strings.Join(escaped, ","))
+		}
 	}
 	result += strings.Join(columnQueries, ",") + primary + `)`
 
