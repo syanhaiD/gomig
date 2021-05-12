@@ -158,11 +158,14 @@ func parseTables(tableIFMap map[string]interface{}) (result tableInfo, indexInfo
 			if _, exist := indexInfos[indexName]; !exist {
 				indexInfos[indexName] = &indexInfo{tableName: result.name, unique: true, indexName: indexName, columns: []string{}}
 			}
-			for _, idxColumnName := range indexesSlice {
-				if !result.columnsMap[idxColumnName].null {
-					// uniqueでnot nullはprimary指定
-					err = errors.New(fmt.Sprintf("table: %v column: %v For those that are NOT NULL and UNIQUE, please specify primary", result.name, idxColumnName))
-					return
+			if len(primaryKeys) <= 0 {
+				for _, idxColumnName := range indexesSlice {
+					if !result.columnsMap[idxColumnName].null {
+						// uniqueでnot nullかつprimaryを明示していない場合、最初にnot null uniqueを指定したカラムが勝手にprimaryになるので
+						// 既にprimary keyが存在する場合のみnot null uniqueを許可する
+						err = errors.New(fmt.Sprintf("table: %v column: %v For those that are NOT NULL and UNIQUE, please specify primary", result.name, idxColumnName))
+						return
+					}
 				}
 			}
 			indexInfos[indexName].columns = append(indexInfos[indexName].columns, indexesSlice...)
