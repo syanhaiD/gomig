@@ -6,15 +6,14 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-// TODO: primary周りの改善いずれやろう
-func Exec(tomlPath string, sqlOnly, testEnv bool) (err error) {
-	fromToml, err := parseToml(tomlPath, testEnv)
+func Exec(tomlPath, env, settingTomlPath string, sqlOnly bool) (err error) {
+	fromToml, err := parseToml(tomlPath, env, settingTomlPath)
 	if err != nil {
 		return
 	}
 	connect(fromToml.database)
 	defer dbConn.Close()
-	fromDB, err := parseDB(fromToml.database.name)
+	fromDB, err := parseDB(fromToml.database.Name)
 	if err != nil {
 		return
 	}
@@ -33,16 +32,16 @@ func Exec(tomlPath string, sqlOnly, testEnv bool) (err error) {
 
 var dbConn *sql.DB
 
-func connect(dbInfo databaseInfo) {
+func connect(dbInfo DatabaseInfo) {
 	dsn := fmt.Sprintf(
 		`%v:%v@tcp(%v:%v)/%v?parseTime=true&charset=%v&collation=%v`,
-		dbInfo.user,
-		dbInfo.pass,
-		dbInfo.host,
-		dbInfo.port,
-		dbInfo.name,
-		dbInfo.charset,
-		dbInfo.collation,
+		dbInfo.User,
+		dbInfo.Pass,
+		dbInfo.Host,
+		dbInfo.Port,
+		dbInfo.Name,
+		dbInfo.Charset,
+		dbInfo.Collation,
 	)
 
 	var err error

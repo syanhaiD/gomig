@@ -3,21 +3,21 @@ package proc
 import "database/sql"
 
 type schema struct {
-	database       databaseInfo
+	database       DatabaseInfo
 	tables         []tableInfo
 	tablesMap      map[string]tableInfo  // map[tableName]
 	indexInfosMap  map[string]*indexInfo // map[indexName]
 	primaryKeysMap map[string][]string // map[tableName]
 }
 
-type databaseInfo struct {
-	name      string
-	user      string
-	pass      string
-	host      string
-	port      string
-	charset   string
-	collation string
+type DatabaseInfo struct {
+	Name      string
+	User      string
+	Pass      string
+	Host      string
+	Port      string
+	Charset   string
+	Collation string
 }
 
 type tableInfo struct {

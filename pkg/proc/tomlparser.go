@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func parseToml(tomlPath string, testEnv bool) (result schema, err error) {
+func parseToml(tomlPath, env, settingTomlPath string) (result schema, err error) {
 	var trial interface{}
 	_, err = toml.DecodeFile(tomlPath, &trial)
 	if err != nil {
@@ -21,44 +21,51 @@ func parseToml(tomlPath string, testEnv bool) (result schema, err error) {
 		primaryKeysMap: map[string][]string{},
 	}
 	parsed := trial.(map[string]interface{})
-	var databaseSettingKey string
-	if testEnv {
-		databaseSettingKey = "database_test"
-	} else {
-		databaseSettingKey = "database"
+	databaseSettingKey := fmt.Sprintf("database_%v", env)
+	var databaseMapIF interface{}
+	var exist bool
+	if settingTomlPath == "" {
+		databaseMapIF, exist = parsed[databaseSettingKey]
+ 	} else {
+		var dbSettingIF interface{}
+		_, err = toml.DecodeFile(settingTomlPath, &dbSettingIF)
+		if err != nil {
+			return
+		}
+		dbSettingMap := dbSettingIF.(map[string]interface{})
+		databaseMapIF, exist = dbSettingMap[databaseSettingKey]
 	}
-	databaseMapIF, exist := parsed[databaseSettingKey]
 	if !exist {
 		err = errors.New("database setting are not found")
 		return
 	}
 	var ok bool
 	databaseMap := databaseMapIF.(map[string]interface{})
-	if result.database.name, ok = databaseMap["name"].(string); !ok {
+	if result.database.Name, ok = databaseMap["name"].(string); !ok {
 		err = errors.New("key database.name are not found")
 		return
 	}
-	if result.database.user, ok = databaseMap["user"].(string); !ok {
+	if result.database.User, ok = databaseMap["user"].(string); !ok {
 		err = errors.New("key database.user are not found")
 		return
 	}
-	if result.database.pass, ok = databaseMap["pass"].(string); !ok {
+	if result.database.Pass, ok = databaseMap["pass"].(string); !ok {
 		err = errors.New("key database.pass are not found")
 		return
 	}
-	if result.database.host, ok = databaseMap["host"].(string); !ok {
+	if result.database.Host, ok = databaseMap["host"].(string); !ok {
 		err = errors.New("key database.host are not found")
 		return
 	}
-	if result.database.port, ok = databaseMap["port"].(string); !ok {
+	if result.database.Port, ok = databaseMap["port"].(string); !ok {
 		err = errors.New("key database.port are not found")
 		return
 	}
-	if result.database.charset, ok = databaseMap["charset"].(string); !ok {
-		result.database.charset = "utf8mb4,utf8"
+	if result.database.Charset, ok = databaseMap["charset"].(string); !ok {
+		result.database.Charset = "utf8mb4,utf8"
 	}
-	if result.database.collation, ok = databaseMap["collation"].(string); !ok {
-		result.database.collation = "utf8mb4_general_ci"
+	if result.database.Collation, ok = databaseMap["collation"].(string); !ok {
+		result.database.Collation = "utf8mb4_general_ci"
 	}
 
 	tablesSliceIF, ok := parsed["tables"].([]map[string]interface{})
