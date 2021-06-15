@@ -22,7 +22,7 @@ func procTableDiff(fromToml, fromDB schema, result *Queries) {
 	for _, ti := range fromToml.tables {
 		// tomlにあってDBにないテーブルはcreate
 		if _, exist := fromDB.tablesMap[ti.name]; !exist {
-			result.CreateTables = append(result.CreateTables, buildCreateTableQuery(ti, fromToml.primaryKeysMap[ti.name]))
+			result.CreateTables = append(result.CreateTables, buildCreateTableQuery(ti, fromToml.primaryKeysMap[ti.name], fromToml.engine))
 			continue
 		}
 		if !reflect.DeepEqual(ti.columns, fromDB.tablesMap[ti.name].columns) {
@@ -61,7 +61,7 @@ func procTableDiff(fromToml, fromDB schema, result *Queries) {
 	}
 }
 
-func buildCreateTableQuery(ti tableInfo, primaryKeys []string) string {
+func buildCreateTableQuery(ti tableInfo, primaryKeys []string, engineMap map[string]string) string {
 	result := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %v (`, ti.name)
 	columnQueries := []string{}
 	var primary string
@@ -99,6 +99,9 @@ func buildCreateTableQuery(ti tableInfo, primaryKeys []string) string {
 		}
 	}
 	result += strings.Join(columnQueries, ",") + primary + `)`
+	if engineName, exist := engineMap[ti.name]; exist {
+		result += fmt.Sprintf(" ENGINE=%v", engineName)
+	}
 
 	return result
 }
@@ -198,6 +201,10 @@ func procIndexDiff(fromToml, fromDB schema, result *Queries) {
 }
 
 func buildAddIndexQuery(ii *indexInfo) string {
+	if ii.indexType == "FULLTEXT" {
+		return buildFullTextAddQuery(ii)
+	}
+
 	var indexType string
 	if ii.unique {
 		indexType = "UNIQUE INDEX"
@@ -212,6 +219,16 @@ func buildAddIndexQuery(ii *indexInfo) string {
 	columns = strings.TrimRight(columns, ",")
 
 	return fmt.Sprintf(`ALTER TABLE %v ADD %v %v (%v)`, ii.tableName, indexType, ii.indexName, columns)
+}
+
+func buildFullTextAddQuery(ii *indexInfo) string {
+	var columns string
+	for _, column := range ii.columns {
+		columns += "`" + column + "`,"
+	}
+	columns = strings.TrimRight(columns, ",")
+
+	return fmt.Sprintf(`ALTER TABLE %v ADD %v %v (%v) COMMENT %v`, ii.tableName, "FULLTEXT KEY", ii.indexName, columns, ii.comment)
 }
 
 func buildDeleteIndexQuery(ii *indexInfo) string {

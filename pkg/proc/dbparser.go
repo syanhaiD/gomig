@@ -34,9 +34,10 @@ func parseDB(dbName string) (result schema, err error) {
 	}
 
 	result = schema{
-		tables:        []tableInfo{},
-		tablesMap:     map[string]tableInfo{},
-		indexInfosMap: map[string]*indexInfo{},
+		tables:         []tableInfo{},
+		tablesMap:      map[string]tableInfo{},
+		indexInfosMap:  map[string]*indexInfo{},
+		primaryKeysMap: map[string][]string{},
 	}
 	var desc *sql.Rows
 	for _, table := range tables {
@@ -102,19 +103,17 @@ func parseDB(dbName string) (result schema, err error) {
 		}
 	}
 
-	indexInfos, err := parseDBIndex(dbName)
+	result.indexInfosMap, result.primaryKeysMap, err = parseDBIndex(dbName)
 	if err != nil {
 		return
-	}
-	for key, value := range indexInfos {
-		result.indexInfosMap[key] = value
 	}
 
 	return
 }
 
-func parseDBIndex(dbName string) (indexInfos map[string]*indexInfo, err error) {
+func parseDBIndex(dbName string) (indexInfos map[string]*indexInfo, pksMap map[string][]string, err error) {
 	indexInfos = map[string]*indexInfo{}
+	pksMap = map[string][]string{}
 
 	var rows *sql.Rows
 	rows, err = dbConn.Query(indexQuery(), dbName)
@@ -132,7 +131,7 @@ func parseDBIndex(dbName string) (indexInfos map[string]*indexInfo, err error) {
 		var seq int // not use
 		var columnName string
 		err = rows.Scan(
-			&idxInfo.tableName, &nonUnique, &idxInfo.indexName, &seq, &columnName,
+			&idxInfo.tableName, &nonUnique, &idxInfo.indexType, &idxInfo.indexName, &seq, &columnName,
 		)
 		if err != nil {
 			fmt.Println(err)
@@ -145,11 +144,18 @@ func parseDBIndex(dbName string) (indexInfos map[string]*indexInfo, err error) {
 			indexInfos[idxInfo.indexName] = idxInfo
 		}
 		indexInfos[idxInfo.indexName].columns = append(indexInfos[idxInfo.indexName].columns, columnName)
+		// 2021-06-15現在、ExportTomlでしか利用していないがDBから読むときもPrimaryの情報を選別しておく
+		if idxInfo.indexName == "PRIMARY" {
+			if _, exist := pksMap[idxInfo.tableName]; !exist {
+				pksMap[idxInfo.tableName] = []string{}
+			}
+			pksMap[idxInfo.tableName] = append(pksMap[idxInfo.tableName], columnName)
+		}
 	}
 
 	return
 }
 
 func indexQuery() string {
-	return "SELECT TABLE_NAME, NON_UNIQUE, INDEX_NAME, SEQ_IN_INDEX, COLUMN_NAME from INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = ? ORDER BY INDEX_NAME, SEQ_IN_INDEX"
+	return "SELECT TABLE_NAME, NON_UNIQUE, INDEX_TYPE, INDEX_NAME, SEQ_IN_INDEX, COLUMN_NAME from INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = ? ORDER BY INDEX_NAME, SEQ_IN_INDEX"
 }

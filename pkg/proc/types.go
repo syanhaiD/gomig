@@ -7,7 +7,8 @@ type schema struct {
 	tables         []tableInfo
 	tablesMap      map[string]tableInfo  // map[tableName]
 	indexInfosMap  map[string]*indexInfo // map[indexName]
-	primaryKeysMap map[string][]string // map[tableName]
+	primaryKeysMap map[string][]string   // map[tableName]
+	engine         map[string]string     // map[tableName]engineName tomlからのCreate専用でALTER非対応
 }
 
 type DatabaseInfo struct {
@@ -64,5 +65,7 @@ type indexInfo struct {
 	tableName string
 	unique    bool
 	indexName string
+	indexType string // 2021-06-15 BTREE or FULLTEXT のみ
 	columns   []string
+	comment   string // 'tokenizer "TokenBigramSplitSymbolAlphaDigit"' のみ
 }

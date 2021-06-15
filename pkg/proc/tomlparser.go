@@ -19,6 +19,7 @@ func parseToml(tomlPath, env, settingTomlPath string) (result schema, err error)
 		tablesMap:      map[string]tableInfo{},
 		indexInfosMap:  map[string]*indexInfo{},
 		primaryKeysMap: map[string][]string{},
+		engine:         map[string]string{},
 	}
 	parsed := trial.(map[string]interface{})
 	databaseSettingKey := fmt.Sprintf("database_%v", env)
@@ -26,7 +27,7 @@ func parseToml(tomlPath, env, settingTomlPath string) (result schema, err error)
 	var exist bool
 	if settingTomlPath == "" {
 		databaseMapIF, exist = parsed[databaseSettingKey]
- 	} else {
+	} else {
 		var dbSettingIF interface{}
 		_, err = toml.DecodeFile(settingTomlPath, &dbSettingIF)
 		if err != nil {
@@ -75,9 +76,10 @@ func parseToml(tomlPath, env, settingTomlPath string) (result schema, err error)
 	}
 	for _, tableIFMap := range tablesSliceIF {
 		var ti tableInfo
+		var engine string
 		indexInfos := map[string]*indexInfo{}
 		primaries := []string{}
-		ti, indexInfos, primaries, err = parseTables(tableIFMap)
+		ti, indexInfos, primaries, engine, err = parseTables(tableIFMap)
 		if err != nil {
 			return
 		}
@@ -87,12 +89,15 @@ func parseToml(tomlPath, env, settingTomlPath string) (result schema, err error)
 		for key, value := range indexInfos {
 			result.indexInfosMap[key] = value
 		}
+		if engine != "" {
+			result.engine[ti.name] = engine
+		}
 	}
 
 	return
 }
 
-func parseTables(tableIFMap map[string]interface{}) (result tableInfo, indexInfos map[string]*indexInfo, primaryKeys []string, err error) {
+func parseTables(tableIFMap map[string]interface{}) (result tableInfo, indexInfos map[string]*indexInfo, primaryKeys []string, engine string, err error) {
 	result = tableInfo{
 		columnsMap: map[string]tableColumn{},
 	}
@@ -148,7 +153,7 @@ func parseTables(tableIFMap map[string]interface{}) (result tableInfo, indexInfo
 			indexesSlice := strings.Split(indexesString, ",")
 			indexName := "idx_" + result.name + "_" + strings.Join(indexesSlice, "_and_")
 			if _, exist := indexInfos[indexName]; !exist {
-				indexInfos[indexName] = &indexInfo{tableName: result.name, indexName: indexName, columns: []string{}}
+				indexInfos[indexName] = &indexInfo{tableName: result.name, indexName: indexName, indexType: "BTREE", columns: []string{}}
 			}
 			indexInfos[indexName].columns = append(indexInfos[indexName].columns, indexesSlice...)
 		}
@@ -163,7 +168,7 @@ func parseTables(tableIFMap map[string]interface{}) (result tableInfo, indexInfo
 			indexesSlice := strings.Split(indexesString, ",")
 			indexName := "idx_" + result.name + "_" + strings.Join(indexesSlice, "_and_")
 			if _, exist := indexInfos[indexName]; !exist {
-				indexInfos[indexName] = &indexInfo{tableName: result.name, unique: true, indexName: indexName, columns: []string{}}
+				indexInfos[indexName] = &indexInfo{tableName: result.name, unique: true, indexName: indexName, indexType: "BTREE", columns: []string{}}
 			}
 			if len(primaryKeys) <= 0 {
 				for _, idxColumnName := range indexesSlice {
@@ -177,6 +182,25 @@ func parseTables(tableIFMap map[string]interface{}) (result tableInfo, indexInfo
 			}
 			indexInfos[indexName].columns = append(indexInfos[indexName].columns, indexesSlice...)
 		}
+	}
+	if ftkIF, exist := tableIFMap["fulltext_index"]; exist {
+		indexes := ftkIF.([]interface{})
+		for _, idx := range indexes {
+			indexesString := idx.(string)
+			if indexesString == "" {
+				continue
+			}
+			indexesSlice := strings.Split(indexesString, ",")
+			indexName := "ftk_" + result.name + "_" + strings.Join(indexesSlice, "_and_")
+			if _, exist := indexInfos[indexName]; !exist {
+				indexInfos[indexName] = &indexInfo{tableName: result.name, indexName: indexName, indexType: "FULLTEXT", columns: []string{}}
+				indexInfos[indexName].comment = `'tokenizer "TokenBigramSplitSymbolAlphaDigit"'`
+			}
+			indexInfos[indexName].columns = append(indexInfos[indexName].columns, indexesSlice...)
+		}
+	}
+	if engineIF, exist := tableIFMap["engine"]; exist {
+		engine = engineIF.(string)
 	}
 
 	return
