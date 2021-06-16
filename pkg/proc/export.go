@@ -17,20 +17,37 @@ func ExportToml(tomlPath, env, settingTomlPath string) (err error) {
 		return
 	}
 
+	pKeysByTableNameMap := map[string][]string{}
 	indexesByTableNameMap := map[string][]string{}
+	fulltextIDXByTableNameMap := map[string][]string{}
 	uniqIndexesByTableNameMap := map[string][]string{}
-	for _, ii := range fromDB.indexInfosMap {
-		columnsString := strings.Join(ii.columns, ",")
-		if ii.unique {
-			if _, exist := uniqIndexesByTableNameMap[ii.tableName]; !exist {
-				uniqIndexesByTableNameMap[ii.tableName] = []string{}
+	for tableName, sortedIDXes := range fromDB.indexInfosSlice {
+		for _, idxName := range sortedIDXes {
+			ii := fromDB.indexInfosMap[tableName][idxName]
+			columnsString := strings.Join(ii.columns, ",")
+			if idxName == "PRIMARY" {
+				if _, exist := pKeysByTableNameMap[ii.tableName]; !exist {
+					pKeysByTableNameMap[ii.tableName] = []string{}
+				}
+				pKeysByTableNameMap[ii.tableName] = append(pKeysByTableNameMap[ii.tableName], columnsString)
+				continue
 			}
-			uniqIndexesByTableNameMap[ii.tableName] = append(uniqIndexesByTableNameMap[ii.tableName], columnsString)
-		} else {
-			if _, exist := indexesByTableNameMap[ii.tableName]; !exist {
-				indexesByTableNameMap[ii.tableName] = []string{}
+			if ii.unique {
+				if _, exist := uniqIndexesByTableNameMap[ii.tableName]; !exist {
+					uniqIndexesByTableNameMap[ii.tableName] = []string{}
+				}
+				uniqIndexesByTableNameMap[ii.tableName] = append(uniqIndexesByTableNameMap[ii.tableName], columnsString)
+			} else if ii.indexType == "FULLTEXT" {
+				if _, exist := fulltextIDXByTableNameMap[ii.tableName]; !exist {
+					fulltextIDXByTableNameMap[ii.tableName] = []string{}
+				}
+				fulltextIDXByTableNameMap[ii.tableName] = append(fulltextIDXByTableNameMap[ii.tableName], columnsString)
+			} else {
+				if _, exist := indexesByTableNameMap[ii.tableName]; !exist {
+					indexesByTableNameMap[ii.tableName] = []string{}
+				}
+				indexesByTableNameMap[ii.tableName] = append(indexesByTableNameMap[ii.tableName], columnsString)
 			}
-			indexesByTableNameMap[ii.tableName] = append(indexesByTableNameMap[ii.tableName], columnsString)
 		}
 	}
 
@@ -46,7 +63,9 @@ func ExportToml(tomlPath, env, settingTomlPath string) (err error) {
 			if col.unsigned {
 				columnLine += fmt.Sprintf(`, unsigned = true`)
 			}
-			if !col.null {
+			if col.null {
+				columnLine += fmt.Sprintf(`, null = true`)
+			} else {
 				columnLine += fmt.Sprintf(`, null = false`)
 			}
 			if col.autoInc {
@@ -61,14 +80,39 @@ func ExportToml(tomlPath, env, settingTomlPath string) (err error) {
 		columnLines[len(columnLines) - 1] = strings.TrimRight(columnLines[len(columnLines) - 1], ",")
 		result = append(result, columnLines...)
 		result = append(result, `]`)
-		if pKeys, exist := fromDB.primaryKeysMap[ti.name]; exist {
-			result = append(result, fmt.Sprintf(`primary = ["%v"]`, strings.Join(pKeys, `,`)))
+		if pKeys, exist := pKeysByTableNameMap[ti.name]; exist {
+			result = append(result, fmt.Sprintf(`primary = ["%v"]`, strings.Join(pKeys, ``)))
 		}
 		if idxColumns, exist := indexesByTableNameMap[ti.name]; exist {
-			result = append(result, fmt.Sprintf(`index = ["%v"]`, strings.Join(idxColumns, `,`)))
+			var idxesString string
+			for _, column := range idxColumns {
+				idxesString += fmt.Sprintf(`"%v",`, column)
+			}
+			idxesString = strings.TrimRight(idxesString, ",")
+			result = append(result, fmt.Sprintf(`index = [%v]`, idxesString))
 		}
 		if uniqIdxColumns, exist := uniqIndexesByTableNameMap[ti.name]; exist {
-			result = append(result, fmt.Sprintf(`unique_index = ["%v"]`, strings.Join(uniqIdxColumns, `,`)))
+			var idxesString string
+			for _, column := range uniqIdxColumns {
+				idxesString += fmt.Sprintf(`"%v",`, column)
+			}
+			idxesString = strings.TrimRight(idxesString, ",")
+			result = append(result, fmt.Sprintf(`unique_index = [%v]`, idxesString))
+		}
+		if idxColumns, exist := fulltextIDXByTableNameMap[ti.name]; exist {
+			var idxesString string
+			for _, column := range idxColumns {
+				idxesString += fmt.Sprintf(`"%v",`, column)
+			}
+			idxesString = strings.TrimRight(idxesString, ",")
+			result = append(result, fmt.Sprintf(`fulltext_index = [%v]`, idxesString))
+		}
+		if ti.partition.partitionType != "" {
+			result = append(result, fmt.Sprintf(`partition = {type = "%v", key = "%v", basename = "%v", start = "%v", end = "%v", each = "%v"}`,
+				ti.partition.partitionType, ti.partition.keyColumn, ti.partition.baseName, ti.partition.startNum, ti.partition.endNum, ti.partition.eachRow))
+		}
+		if ti.engine != "" {
+			result = append(result, fmt.Sprintf(`engine = "%v"`, ti.engine))
 		}
 		result[len(result)-1] += "\n"
 	}
