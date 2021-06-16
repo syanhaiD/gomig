@@ -36,8 +36,11 @@ func parseDB(dbName string) (result schema, err error) {
 	result = schema{
 		tables:         []tableInfo{},
 		tablesMap:      map[string]tableInfo{},
-		indexInfosMap:  map[string]*indexInfo{},
-		primaryKeysMap: map[string][]string{},
+		indexInfosMap:  map[string]map[string]*indexInfo{},
+	}
+	indexInfosMap, err := parseDBIndex(dbName)
+	if err != nil {
+		return
 	}
 	var desc *sql.Rows
 	for _, table := range tables {
@@ -96,6 +99,11 @@ func parseDB(dbName string) (result schema, err error) {
 		}
 		result.tables = append(result.tables, ti)
 		result.tablesMap[table] = ti
+		// idx
+		result.indexInfosMap[table] = map[string]*indexInfo{}
+		if _, exist := indexInfosMap[table]; exist {
+			result.indexInfosMap[table] = indexInfosMap[table]
+		}
 	}
 	if desc != nil {
 		if err = desc.Close(); err != nil {
@@ -103,17 +111,11 @@ func parseDB(dbName string) (result schema, err error) {
 		}
 	}
 
-	result.indexInfosMap, result.primaryKeysMap, err = parseDBIndex(dbName)
-	if err != nil {
-		return
-	}
-
 	return
 }
 
-func parseDBIndex(dbName string) (indexInfos map[string]*indexInfo, pksMap map[string][]string, err error) {
-	indexInfos = map[string]*indexInfo{}
-	pksMap = map[string][]string{}
+func parseDBIndex(dbName string) (indexInfos map[string]map[string]*indexInfo, err error) {
+	indexInfos = map[string]map[string]*indexInfo{}
 
 	var rows *sql.Rows
 	rows, err = dbConn.Query(indexQuery(), dbName)
@@ -140,17 +142,13 @@ func parseDBIndex(dbName string) (indexInfos map[string]*indexInfo, pksMap map[s
 		if nonUnique == 0 {
 			idxInfo.unique = true
 		}
-		if _, exist := indexInfos[idxInfo.indexName]; !exist {
-			indexInfos[idxInfo.indexName] = idxInfo
+		if _, exist := indexInfos[idxInfo.tableName]; !exist {
+			indexInfos[idxInfo.tableName] = map[string]*indexInfo{}
 		}
-		indexInfos[idxInfo.indexName].columns = append(indexInfos[idxInfo.indexName].columns, columnName)
-		// 2021-06-15現在、ExportTomlでしか利用していないがDBから読むときもPrimaryの情報を選別しておく
-		if idxInfo.indexName == "PRIMARY" {
-			if _, exist := pksMap[idxInfo.tableName]; !exist {
-				pksMap[idxInfo.tableName] = []string{}
-			}
-			pksMap[idxInfo.tableName] = append(pksMap[idxInfo.tableName], columnName)
+		if _, exist := indexInfos[idxInfo.tableName][idxInfo.indexName]; !exist {
+			indexInfos[idxInfo.tableName][idxInfo.indexName] = idxInfo
 		}
+		indexInfos[idxInfo.tableName][idxInfo.indexName].columns = append(indexInfos[idxInfo.tableName][idxInfo.indexName].columns, columnName)
 	}
 
 	return

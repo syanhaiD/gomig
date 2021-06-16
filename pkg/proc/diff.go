@@ -22,7 +22,7 @@ func procTableDiff(fromToml, fromDB schema, result *Queries) {
 	for _, ti := range fromToml.tables {
 		// tomlにあってDBにないテーブルはcreate
 		if _, exist := fromDB.tablesMap[ti.name]; !exist {
-			result.CreateTables = append(result.CreateTables, buildCreateTableQuery(ti, fromToml.primaryKeysMap[ti.name], fromToml.engine))
+			result.CreateTables = append(result.CreateTables, buildCreateTableQuery(ti, fromToml.indexInfosMap[ti.name], fromToml.engine))
 			continue
 		}
 		if !reflect.DeepEqual(ti.columns, fromDB.tablesMap[ti.name].columns) {
@@ -61,10 +61,12 @@ func procTableDiff(fromToml, fromDB schema, result *Queries) {
 	}
 }
 
-func buildCreateTableQuery(ti tableInfo, primaryKeys []string, engineMap map[string]string) string {
+// PRIMARY KEYはCreate時につける
+func buildCreateTableQuery(ti tableInfo, indexInfosMap map[string]*indexInfo, engineMap map[string]string) string {
 	result := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %v (`, ti.name)
 	columnQueries := []string{}
 	var primary string
+	var autoInc bool
 	for _, column := range ti.columns {
 		definition := []string{fmt.Sprintf("`%v`", column.name)}
 		if column.size == "" {
@@ -85,14 +87,14 @@ func buildCreateTableQuery(ti tableInfo, primaryKeys []string, engineMap map[str
 			// TODO: 一旦auto_incつきは強制でprimaryにする
 			definition = append(definition, "AUTO_INCREMENT")
 			primary = fmt.Sprintf(", PRIMARY KEY (`%v`)", column.name)
+			autoInc = true
 		}
 		columnQueries = append(columnQueries, strings.Join(definition, " "))
 	}
-	if primary == "" {
-		// auto incなし
-		if len(primaryKeys) > 0 {
+	if !autoInc {
+		if ii, exist := indexInfosMap["PRIMARY"]; exist {
 			escaped := []string{}
-			for _, key := range primaryKeys {
+			for _, key := range ii.columns {
 				escaped = append(escaped, fmt.Sprintf("`%v`", key))
 			}
 			primary = fmt.Sprintf(", PRIMARY KEY (%v)", strings.Join(escaped, ","))
@@ -171,31 +173,40 @@ func buildDropColumnTableQuery(ti tableInfo, tc tableColumn) string {
 	return fmt.Sprintf(`ALTER TABLE %v DROP COLUMN %v`, ti.name, tc.name)
 }
 
-// TODO: 面倒なので一旦primaryの付け外しはスルー
 func procIndexDiff(fromToml, fromDB schema, result *Queries) {
-	for idxName, ii := range fromToml.indexInfosMap {
-		if ii.indexName == "PRIMARY" {
-			continue
-		}
-		// tomlにあってDBにないindexはadd
-		if _, exist := fromDB.indexInfosMap[idxName]; !exist {
-			result.AddIndexes = append(result.AddIndexes, buildAddIndexQuery(ii))
-			continue
-		}
-		// 同一index名で差分がある場合delete add
-		if !reflect.DeepEqual(ii, fromDB.indexInfosMap[idxName]) {
-			result.DropIndexes = append(result.DropIndexes, buildDeleteIndexQuery(fromDB.indexInfosMap[idxName]))
-			result.AddIndexes = append(result.AddIndexes, buildAddIndexQuery(ii))
+	for tableName, idxesMap := range fromToml.indexInfosMap {
+		for idxName, ii := range idxesMap {
+			// tomlにあってDBにないindexはadd
+			if _, exist := fromDB.indexInfosMap[tableName]; !exist {
+				// 新規テーブル
+				result.AddIndexes = append(result.AddIndexes, buildAddIndexQuery(ii))
+				continue
+			}
+			if _, exist := fromDB.indexInfosMap[tableName][idxName]; !exist {
+				// idx追加
+				result.AddIndexes = append(result.AddIndexes, buildAddIndexQuery(ii))
+				continue
+			}
+			// 同一index名で差分がある場合delete add
+			if _, exist := fromDB.indexInfosMap[tableName]; exist {
+				if !reflect.DeepEqual(ii, fromDB.indexInfosMap[tableName][idxName]) {
+					result.DropIndexes = append(result.DropIndexes, buildDeleteIndexQuery(fromDB.indexInfosMap[tableName][idxName]))
+					result.AddIndexes = append(result.AddIndexes, buildAddIndexQuery(ii))
+				}
+			}
 		}
 	}
 
-	for idxName, ii := range fromDB.indexInfosMap {
-		if ii.indexName == "PRIMARY" {
-			continue
-		}
-		// DBにあってtomlにないindexはdrop
-		if _, exist := fromToml.indexInfosMap[idxName]; !exist {
-			result.DropIndexes = append(result.DropIndexes, buildDeleteIndexQuery(ii))
+	for tableName, idxesMap := range fromDB.indexInfosMap {
+		for idxName, ii := range idxesMap {
+			// DBにあってtomlにないindexはdrop
+			if _, exist := fromToml.indexInfosMap[tableName]; !exist {
+				// DBにテーブルがあってtomlにないのはdrop対象テーブルなのでスルー
+				continue
+			}
+			if _, exist := fromToml.indexInfosMap[tableName][idxName]; !exist {
+				result.DropIndexes = append(result.DropIndexes, buildDeleteIndexQuery(ii))
+			}
 		}
 	}
 }

@@ -17,20 +17,30 @@ func ExportToml(tomlPath, env, settingTomlPath string) (err error) {
 		return
 	}
 
+	pKeysByTableNameMap := map[string][]string{}
 	indexesByTableNameMap := map[string][]string{}
 	uniqIndexesByTableNameMap := map[string][]string{}
-	for _, ii := range fromDB.indexInfosMap {
-		columnsString := strings.Join(ii.columns, ",")
-		if ii.unique {
-			if _, exist := uniqIndexesByTableNameMap[ii.tableName]; !exist {
-				uniqIndexesByTableNameMap[ii.tableName] = []string{}
+	for _, idxesMap := range fromDB.indexInfosMap {
+		for idxName, ii := range idxesMap {
+			columnsString := strings.Join(ii.columns, ",")
+			if idxName == "PRIMARY" {
+				if _, exist := pKeysByTableNameMap[ii.tableName]; !exist {
+					pKeysByTableNameMap[ii.tableName] = []string{}
+				}
+				pKeysByTableNameMap[ii.tableName] = append(pKeysByTableNameMap[ii.tableName], columnsString)
+				continue
 			}
-			uniqIndexesByTableNameMap[ii.tableName] = append(uniqIndexesByTableNameMap[ii.tableName], columnsString)
-		} else {
-			if _, exist := indexesByTableNameMap[ii.tableName]; !exist {
-				indexesByTableNameMap[ii.tableName] = []string{}
+			if ii.unique {
+				if _, exist := uniqIndexesByTableNameMap[ii.tableName]; !exist {
+					uniqIndexesByTableNameMap[ii.tableName] = []string{}
+				}
+				uniqIndexesByTableNameMap[ii.tableName] = append(uniqIndexesByTableNameMap[ii.tableName], columnsString)
+			} else {
+				if _, exist := indexesByTableNameMap[ii.tableName]; !exist {
+					indexesByTableNameMap[ii.tableName] = []string{}
+				}
+				indexesByTableNameMap[ii.tableName] = append(indexesByTableNameMap[ii.tableName], columnsString)
 			}
-			indexesByTableNameMap[ii.tableName] = append(indexesByTableNameMap[ii.tableName], columnsString)
 		}
 	}
 
@@ -61,7 +71,7 @@ func ExportToml(tomlPath, env, settingTomlPath string) (err error) {
 		columnLines[len(columnLines) - 1] = strings.TrimRight(columnLines[len(columnLines) - 1], ",")
 		result = append(result, columnLines...)
 		result = append(result, `]`)
-		if pKeys, exist := fromDB.primaryKeysMap[ti.name]; exist {
+		if pKeys, exist := pKeysByTableNameMap[ti.name]; exist {
 			result = append(result, fmt.Sprintf(`primary = ["%v"]`, strings.Join(pKeys, `,`)))
 		}
 		if idxColumns, exist := indexesByTableNameMap[ti.name]; exist {

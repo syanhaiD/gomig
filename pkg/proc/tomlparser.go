@@ -17,8 +17,7 @@ func parseToml(tomlPath, env, settingTomlPath string) (result schema, err error)
 	result = schema{
 		tables:         []tableInfo{},
 		tablesMap:      map[string]tableInfo{},
-		indexInfosMap:  map[string]*indexInfo{},
-		primaryKeysMap: map[string][]string{},
+		indexInfosMap:  map[string]map[string]*indexInfo{},
 		engine:         map[string]string{},
 	}
 	parsed := trial.(map[string]interface{})
@@ -77,15 +76,13 @@ func parseToml(tomlPath, env, settingTomlPath string) (result schema, err error)
 	for _, tableIFMap := range tablesSliceIF {
 		var ti tableInfo
 		var engine string
-		indexInfos := map[string]*indexInfo{}
-		primaries := []string{}
-		ti, indexInfos, primaries, engine, err = parseTables(tableIFMap)
+		indexInfos := map[string]map[string]*indexInfo{}
+		ti, indexInfos, engine, err = parseTables(tableIFMap)
 		if err != nil {
 			return
 		}
 		result.tables = append(result.tables, ti)
 		result.tablesMap[ti.name] = ti
-		result.primaryKeysMap[ti.name] = primaries
 		for key, value := range indexInfos {
 			result.indexInfosMap[key] = value
 		}
@@ -97,12 +94,11 @@ func parseToml(tomlPath, env, settingTomlPath string) (result schema, err error)
 	return
 }
 
-func parseTables(tableIFMap map[string]interface{}) (result tableInfo, indexInfos map[string]*indexInfo, primaryKeys []string, engine string, err error) {
+func parseTables(tableIFMap map[string]interface{}) (result tableInfo, indexInfos map[string]map[string]*indexInfo, engine string, err error) {
 	result = tableInfo{
 		columnsMap: map[string]tableColumn{},
 	}
-	indexInfos = map[string]*indexInfo{}
-	primaryKeys = []string{}
+	indexInfos = map[string]map[string]*indexInfo{}
 
 	if nameIF, exist := tableIFMap["name"]; exist {
 		result.name = nameIF.(string)
@@ -110,6 +106,7 @@ func parseTables(tableIFMap map[string]interface{}) (result tableInfo, indexInfo
 		err = errors.New("require table.name")
 		return
 	}
+	indexInfos[result.name] = map[string]*indexInfo{}
 
 	if columnsIF, exist := tableIFMap["columns"]; exist {
 		columnsSliceIF := columnsIF.([]interface{})
@@ -136,11 +133,10 @@ func parseTables(tableIFMap map[string]interface{}) (result tableInfo, indexInfo
 				continue
 			}
 			primariesSlice := strings.Split(primariesString, ",")
-			if _, exist := indexInfos["PRIMARY"]; !exist {
-				indexInfos["PRIMARY"] = &indexInfo{tableName: result.name, indexName: "PRIMARY", columns: []string{}}
+			if _, exist := indexInfos[result.name]["PRIMARY"]; !exist {
+				indexInfos[result.name]["PRIMARY"] = &indexInfo{tableName: result.name, unique: true, indexName: "PRIMARY", indexType: "BTREE", columns: []string{}}
 			}
-			indexInfos["PRIMARY"].columns = append(indexInfos["PRIMARY"].columns, primariesSlice...)
-			primaryKeys = append(primaryKeys, primariesSlice...)
+			indexInfos[result.name]["PRIMARY"].columns = append(indexInfos[result.name]["PRIMARY"].columns, primariesSlice...)
 		}
 	}
 	if indexIF, exist := tableIFMap["index"]; exist {
@@ -152,10 +148,10 @@ func parseTables(tableIFMap map[string]interface{}) (result tableInfo, indexInfo
 			}
 			indexesSlice := strings.Split(indexesString, ",")
 			indexName := "idx_" + result.name + "_" + strings.Join(indexesSlice, "_and_")
-			if _, exist := indexInfos[indexName]; !exist {
-				indexInfos[indexName] = &indexInfo{tableName: result.name, indexName: indexName, indexType: "BTREE", columns: []string{}}
+			if _, exist := indexInfos[result.name][indexName]; !exist {
+				indexInfos[result.name][indexName] = &indexInfo{tableName: result.name, indexName: indexName, indexType: "BTREE", columns: []string{}}
 			}
-			indexInfos[indexName].columns = append(indexInfos[indexName].columns, indexesSlice...)
+			indexInfos[result.name][indexName].columns = append(indexInfos[result.name][indexName].columns, indexesSlice...)
 		}
 	}
 	if uniqIndexIF, exist := tableIFMap["unique_index"]; exist {
@@ -167,10 +163,10 @@ func parseTables(tableIFMap map[string]interface{}) (result tableInfo, indexInfo
 			}
 			indexesSlice := strings.Split(indexesString, ",")
 			indexName := "idx_" + result.name + "_" + strings.Join(indexesSlice, "_and_")
-			if _, exist := indexInfos[indexName]; !exist {
-				indexInfos[indexName] = &indexInfo{tableName: result.name, unique: true, indexName: indexName, indexType: "BTREE", columns: []string{}}
+			if _, exist := indexInfos[result.name][indexName]; !exist {
+				indexInfos[result.name][indexName] = &indexInfo{tableName: result.name, unique: true, indexName: indexName, indexType: "BTREE", columns: []string{}}
 			}
-			if len(primaryKeys) <= 0 {
+			if _, exist := indexInfos[result.name]["PRIMARY"]; !exist {
 				for _, idxColumnName := range indexesSlice {
 					if !result.columnsMap[idxColumnName].null {
 						// uniqueでnot nullかつprimaryを明示していない場合、最初にnot null uniqueを指定したカラムが勝手にprimaryになるので
@@ -180,7 +176,7 @@ func parseTables(tableIFMap map[string]interface{}) (result tableInfo, indexInfo
 					}
 				}
 			}
-			indexInfos[indexName].columns = append(indexInfos[indexName].columns, indexesSlice...)
+			indexInfos[result.name][indexName].columns = append(indexInfos[result.name][indexName].columns, indexesSlice...)
 		}
 	}
 	if ftkIF, exist := tableIFMap["fulltext_index"]; exist {
@@ -192,11 +188,11 @@ func parseTables(tableIFMap map[string]interface{}) (result tableInfo, indexInfo
 			}
 			indexesSlice := strings.Split(indexesString, ",")
 			indexName := "ftk_" + result.name + "_" + strings.Join(indexesSlice, "_and_")
-			if _, exist := indexInfos[indexName]; !exist {
-				indexInfos[indexName] = &indexInfo{tableName: result.name, indexName: indexName, indexType: "FULLTEXT", columns: []string{}}
-				indexInfos[indexName].comment = `'tokenizer "TokenBigramSplitSymbolAlphaDigit"'`
+			if _, exist := indexInfos[result.name][indexName]; !exist {
+				indexInfos[result.name][indexName] = &indexInfo{tableName: result.name, indexName: indexName, indexType: "FULLTEXT", columns: []string{}}
+				indexInfos[result.name][indexName].comment = `'tokenizer "TokenBigramSplitSymbolAlphaDigit"'`
 			}
-			indexInfos[indexName].columns = append(indexInfos[indexName].columns, indexesSlice...)
+			indexInfos[result.name][indexName].columns = append(indexInfos[result.name][indexName].columns, indexesSlice...)
 		}
 	}
 	if engineIF, exist := tableIFMap["engine"]; exist {

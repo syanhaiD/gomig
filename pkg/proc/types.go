@@ -3,12 +3,11 @@ package proc
 import "database/sql"
 
 type schema struct {
-	database       DatabaseInfo
-	tables         []tableInfo
-	tablesMap      map[string]tableInfo  // map[tableName]
-	indexInfosMap  map[string]*indexInfo // map[indexName]
-	primaryKeysMap map[string][]string   // map[tableName]
-	engine         map[string]string     // map[tableName]engineName tomlからのCreate専用でALTER非対応
+	database      DatabaseInfo
+	tables        []tableInfo
+	tablesMap     map[string]tableInfo             // map[tableName]
+	indexInfosMap map[string]map[string]*indexInfo // map[tableName]map[indexName]
+	engine        map[string]string                // map[tableName]engineName tomlからのCreate専用でALTER非対応
 }
 
 type DatabaseInfo struct {
