@@ -52,7 +52,7 @@ func procTableDiff(fromToml, fromDB schema, result *Queries) {
 			result.DropTables = append(result.DropTables, buildDropTableQuery(ti))
 			continue
 		}
-		if !reflect.DeepEqual(ti.columns, fromDB.tablesMap[ti.name].columns) {
+		if !reflect.DeepEqual(ti.columns, fromToml.tablesMap[ti.name].columns) {
 			for _, tc := range ti.columns {
 				if _, exist := fromToml.tablesMap[ti.name].columnsMap[tc.name]; !exist {
 					// DBにあってtomlにないカラムはdrop
