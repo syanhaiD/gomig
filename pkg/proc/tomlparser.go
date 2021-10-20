@@ -7,9 +7,13 @@ import (
 	"strings"
 )
 
-func parseToml(tomlPath, env, settingTomlPath string) (result schema, err error) {
+func parseToml(schemaToml, env, settingToml string, useEmbed bool) (result schema, err error) {
 	var trial interface{}
-	_, err = toml.DecodeFile(tomlPath, &trial)
+	if useEmbed {
+		_, err = toml.Decode(schemaToml, &trial)
+	} else {
+		_, err = toml.DecodeFile(schemaToml, &trial)
+	}
 	if err != nil {
 		return
 	}
@@ -24,11 +28,15 @@ func parseToml(tomlPath, env, settingTomlPath string) (result schema, err error)
 	databaseSettingKey := fmt.Sprintf("database_%v", env)
 	var databaseMapIF interface{}
 	var exist bool
-	if settingTomlPath == "" {
+	if settingToml == "" {
 		databaseMapIF, exist = parsed[databaseSettingKey]
 	} else {
 		var dbSettingIF interface{}
-		_, err = toml.DecodeFile(settingTomlPath, &dbSettingIF)
+		if useEmbed {
+			_, err = toml.Decode(settingToml, &dbSettingIF)
+		} else {
+			_, err = toml.DecodeFile(settingToml, &dbSettingIF)
+		}
 		if err != nil {
 			return
 		}

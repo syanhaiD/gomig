@@ -4,8 +4,8 @@ import (
 	"fmt"
 )
 
-func Exec(tomlPath, env, settingTomlPath string, sqlOnly bool) (err error) {
-	fromToml, err := parseToml(tomlPath, env, settingTomlPath)
+func Exec(schemaToml, env, settingToml string, useEmbed, sqlOnly bool) (err error) {
+	fromToml, err := parseToml(schemaToml, env, settingToml, useEmbed)
 	if err != nil {
 		return
 	}

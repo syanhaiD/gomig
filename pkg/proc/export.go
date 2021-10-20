@@ -5,8 +5,8 @@ import (
 	"strings"
 )
 
-func ExportToml(tomlPath, env, settingTomlPath string) (err error) {
-	fromToml, err := parseToml(tomlPath, env, settingTomlPath)
+func ExportToml(schemaToml, env, settingToml string, useEmbed bool) (err error) {
+	fromToml, err := parseToml(schemaToml, env, settingToml, useEmbed)
 	if err != nil {
 		return
 	}

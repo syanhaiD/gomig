@@ -21,7 +21,7 @@ func main() {
 	}
 
 	if *export {
-		err := proc.ExportToml(*tomlPath, *env, *settingTomlPath)
+		err := proc.ExportToml(*tomlPath, *env, *settingTomlPath, false)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -29,7 +29,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	err := proc.Exec(*tomlPath, *env, *settingTomlPath, *sqlOnly)
+	err := proc.Exec(*tomlPath, *env, *settingTomlPath, false, *sqlOnly)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
