@@ -39,6 +39,8 @@ func procTableDiff(fromToml, fromDB schema, result *Queries) {
 					continue
 				}
 				if !reflect.DeepEqual(tc, fromDB.tablesMap[ti.name].columnsMap[tc.name]) {
+					fmt.Println(tc)
+					fmt.Println(fromDB.tablesMap[ti.name].columnsMap[tc.name])
 					// 両方にあるがカラム内容に差分がある場合modify
 					result.ModifyColumns = append(result.ModifyColumns, buildModifyColumnTableQuery(ti, tc))
 				}
@@ -118,7 +120,7 @@ func buildCreateTableQuery(ti tableInfo, indexInfosMap map[string]*indexInfo) st
 			if i == endIDX {
 				eachString = "maxvalue"
 			} else {
-				eachString = fmt.Sprintf("(%v)", strconv.Itoa(i * eachRows))
+				eachString = fmt.Sprintf("(%v)", strconv.Itoa(i*eachRows))
 			}
 			result += fmt.Sprintf(" PARTITION %v%v VALUES LESS THAN %v,", ti.partition.baseName, i, eachString)
 		}

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/BurntSushi/toml"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"strings"
 )
 
@@ -213,7 +215,7 @@ func parseTables(tableIFMap map[string]interface{}) (result tableInfo, indexInfo
 	if engineIF, exist := tableIFMap["engine"]; exist {
 		// 一旦Mroongaのみ対応
 		engine := strings.ToLower(engineIF.(string))
-		engine = strings.Title(engine)
+		engine = cases.Title(language.Und).String(engine)
 		result.engine = "Mroonga"
 	}
 	if partitionIF, exist := tableIFMap["partition"]; exist {

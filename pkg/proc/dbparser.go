@@ -106,6 +106,15 @@ func parseDB(dbName string) (result schema, err error) {
 					tc.unsigned = true
 				}
 				tc.columnType = splitedType[0]
+				if tc.columnType == "int" {
+					if tc.unsigned {
+						tc.size = "10"
+					} else {
+						tc.size = "11"
+					}
+				} else if tc.columnType == "bigint" {
+					tc.size = "20"
+				}
 			}
 			if strings.ToLower(dc.null) == "yes" {
 				tc.null = true

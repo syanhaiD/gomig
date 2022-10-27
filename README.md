@@ -9,6 +9,8 @@ DB接続でエラった場合panicします
 カラムの存在チェックとかもしてないので記載にミスがあった場合割と容赦なくSQLエラーなります  
 PRIMARYキーの付替えは現状できません  
 
+mysql8系とmariadbのみ対応
+
 ## usage(executable)
 toml_pathは必須  
 -sql_onlyつけるとクエリ実行せずにSQLを標準出力に吐き捨てます
@@ -39,8 +41,8 @@ uniqはunique_indexで指定すること
 
 auto_inc指定すると内部で自動で単一のprimary keyにしちゃいます  
 
-not nullが指定されているカラムがunique_index指定されている場合エラーとしています  
-primaryに設定してください
+primary keyが指定されていないテーブルでunique_index指定されていてかつnot nullが指定されているカラムがある場合エラーとしています  
+primaryに設定するか、別にprimary keyを設定してください
 
 ```
 [database]
